@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using BookLibrary.Models;
+using BookLibrary.Response;
 
 namespace BookLibrary.Controllers
 {
@@ -21,9 +22,9 @@ namespace BookLibrary.Controllers
 
         // GET: api/Writer
         [HttpGet]
-        public Task<IEnumerable<Writer>> Get(string country, string name)
+        public async Task<Response<IEnumerable<Writer>>> Get(string country, string name)
         {
-            return db.GetWriters(country, name);
+            return new OkResult<IEnumerable<Writer>>(await db.GetWriters(country, name));
         }
 
         // GET: api/Writer/id
@@ -39,7 +40,7 @@ namespace BookLibrary.Controllers
         {
             if (writer == null)
             {
-                return BadRequest();
+                throw new Exception("Value cannot be null");
             }
             await db.Create(writer);
             return Ok(writer);

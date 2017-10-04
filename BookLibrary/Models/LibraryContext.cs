@@ -1,4 +1,5 @@
-﻿using MongoDB.Bson;
+﻿using BookLibrary.Properties;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
 using System;
@@ -16,10 +17,10 @@ namespace BookLibrary.Models
         public LibraryContext()
         {
             // строка подключения
-            string connectionString = "mongodb://localhost:27017/library";
+            var connectionString = Resources.ResourceManager.GetString("MONGODB_CONNECTION_STRING");
             var connection = new MongoUrlBuilder(connectionString);
             // получаем клиента для взаимодействия с базой данных
-            MongoClient client = new MongoClient(connectionString);
+            var client = new MongoClient(connectionString);
             // получаем доступ к самой базе данных
             database = client.GetDatabase(connection.DatabaseName);
         }
@@ -29,9 +30,6 @@ namespace BookLibrary.Models
         {
             get { return database.GetCollection<Writer>("writers"); }
         }
-
-
-
 
         // получаем все документы, используя критерии фальтрации
         public async Task<IEnumerable<Writer>> GetWriters(string country, string name)

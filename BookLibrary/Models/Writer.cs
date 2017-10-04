@@ -15,7 +15,7 @@ namespace BookLibrary.Models
         public string Id { get; set; }
         public string name { get; set; }
         public string country { get; set; }
-        public virtual IList<BaseBook> Books { get; set; }
+        public virtual IEnumerable<BaseBook> Books { get; set; }
         public Writer()
         {
             Books = new List<BaseBook>();

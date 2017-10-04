@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using BookLibrary.Models;
+using BookLibrary.Filters;
 
 namespace BookLibrary
 {
@@ -25,7 +26,11 @@ namespace BookLibrary
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddTransient<LibraryContext>();
-            services.AddMvc();
+            services.AddMvc(
+                options =>
+                {
+                    options.Filters.Add(new CustomExceptionFilter());
+                });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

@@ -31,7 +31,7 @@ namespace BookLibrary.Controllers
         public Task<Book> Get(string id)
         {
             var arrParams = id.Split('&');
-            int bookId = Convert.ToInt32(arrParams[1]);
+            var bookId = Convert.ToInt32(arrParams[1]);
             return db.GetBook(arrParams[0], bookId);
         }
 
@@ -62,7 +62,7 @@ namespace BookLibrary.Controllers
         public async Task Delete(string id)
         {
             var arrParams = id.Split('&');
-            int bookId = Convert.ToInt32(arrParams[1]);
+            var bookId = Convert.ToInt32(arrParams[1]);
             await db.RemoveBook(arrParams[0], bookId);
         }
 
