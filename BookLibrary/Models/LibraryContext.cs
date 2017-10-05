@@ -94,7 +94,7 @@ namespace BookLibrary.Models
                             bookId = bookItem.bookId,
                             title = bookItem.title,
                             genre = bookItem.genre,
-                            published = bookItem.published,
+                            published = bookItem.published
                         });
                     }
                 }
@@ -151,7 +151,7 @@ namespace BookLibrary.Models
             List<Writer> theWriter =  Writers.Find(Builders<Writer>.Filter.Eq("_id", new ObjectId(b.writerId))).ToList();
             List<BaseBook> bookMaxIndex = theWriter[0].Books.OrderByDescending(p => p.bookId).Take(1).ToList();
             int i = bookMaxIndex.Count() == 0? 1 : bookMaxIndex[0].bookId + 1;
-            
+
             var update = Builders<Writer>.Update
                     .Push<BaseBook>(e => e.Books, new BaseBook()
                     {

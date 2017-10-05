@@ -20,6 +20,7 @@ namespace BookLibrary.Models
         public string genre { get; set; }
 
         [BsonElement(elementName: "published")]
+        [BsonDateTimeOptions(Kind = DateTimeKind.Local)]
         public DateTime published { get; set; }
     }
 }
