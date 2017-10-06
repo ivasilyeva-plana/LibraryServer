@@ -1,5 +1,6 @@
 ﻿using BookLibrary.Properties;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
 using System;
@@ -203,6 +204,54 @@ namespace BookLibrary.Models
             await Writers.FindOneAndUpdateAsync(filter, update);
 
         }
+
+
+        public async Task <IEnumerable<Report>> Report1(int numReport, int year)
+        {
+            switch (numReport)
+            {
+                // 1- отчет книги за год по месяцам
+                case 1:
+
+                    DateTime date1 = new DateTime(year, 1, 1);
+                    DateTime date2 = new DateTime(year + 1, 1, 1);
+
+                    //инициализация фильтра, который отберёт всех авторов у которых есть книги с указанным годом издания
+                    var subFilter = Builders<BaseBook>.Filter.Gte("published", new BsonDateTime(date1))
+                                    & Builders<BaseBook>.Filter.Lt("published", new BsonDateTime(date2));
+                    var filter = Builders<Writer>.Filter.ElemMatch("Books", subFilter);
+
+
+                    var list = await Writers.Aggregate()
+                                    .Match(filter)
+                                    .Project(w => new { w.Books })
+                                    .Unwind(w => w.Books).ToListAsync();
+
+                    List<BaseBook> listBook = new List<BaseBook>();
+
+                    foreach (var l in list)
+                    {
+                        var x = l.GetElement("Books").Value.ToBsonDocument();
+                        listBook.Add(BsonSerializer.Deserialize<BaseBook>(x));
+                    }
+
+                    var months = new string[]{"январь", "февраль", "март",
+                                                  "апрель", "май", "июнь",
+                                                  "июль", "август", "сентябрь",
+                                                  "октябрь", "ноябрь", "декабрь"};
+                    return listBook.Where(u => u.published.Year == year).GroupBy(u => u.published.Month)
+                                .Select(g => new Report
+                                {
+                                    Str = months[g.Key - 1],
+                                    Num = g.Count()
+                                });
+                default: return null;
+            }
+
+        }
+        
+
+
 
     }
 }
