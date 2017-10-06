@@ -206,8 +206,9 @@ namespace BookLibrary.Models
         }
 
 
-        public async Task <IEnumerable<Report>> Report1(int numReport, int year)
+        public async Task <IEnumerable<Report>> Report(int numReport, int year)
         {
+            List<BaseBook> listBook = new List<BaseBook>();
             switch (numReport)
             {
                 // 1- отчет книги за год по месяцам
@@ -227,8 +228,6 @@ namespace BookLibrary.Models
                                     .Project(w => new { w.Books })
                                     .Unwind(w => w.Books).ToListAsync();
 
-                    List<BaseBook> listBook = new List<BaseBook>();
-
                     foreach (var l in list)
                     {
                         var x = l.GetElement("Books").Value.ToBsonDocument();
@@ -243,6 +242,25 @@ namespace BookLibrary.Models
                                 .Select(g => new Report
                                 {
                                     Str = months[g.Key - 1],
+                                    Num = g.Count()
+                                });
+                
+                // 3- отчет книги по жанрам
+                case 3:
+                    var baseList = await Writers.Aggregate()
+                                    .Project(w => new { w.Books })
+                                    .Unwind(w => w.Books).ToListAsync();
+
+                    foreach (var l in baseList)
+                    {
+                        var x = l.GetElement("Books").Value.ToBsonDocument();
+                        listBook.Add(BsonSerializer.Deserialize<BaseBook>(x));
+                    }
+
+                    return listBook.GroupBy(u => u.genre)
+                                .Select(g => new Report
+                                {
+                                    Str = g.Key,
                                     Num = g.Count()
                                 });
                 default: return null;

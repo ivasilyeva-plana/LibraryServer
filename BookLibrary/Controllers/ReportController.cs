@@ -25,7 +25,7 @@ namespace BookLibrary.Controllers
         [HttpGet]
         public  Task<IEnumerable<Report>> Get(int numReport, int year)
         {
-            return db.Report1(numReport, year);
+            return db.Report(numReport, year);
         }
 
         // GET: api/Report/5
