@@ -211,7 +211,7 @@ namespace BookLibrary.Models
             List<BaseBook> listBook = new List<BaseBook>();
             switch (numReport)
             {
-                // 1- отчет книги за год по месяцам
+                // 1 - отчет книги за год по месяцам
                 case 1:
 
                     DateTime date1 = new DateTime(year, 1, 1);
@@ -244,8 +244,30 @@ namespace BookLibrary.Models
                                     Str = months[g.Key - 1],
                                     Num = g.Count()
                                 });
-                
-                // 3- отчет книги по жанрам
+
+                // 2 - отчет авторы по странам
+                case 2:
+
+                    var builder = new FilterDefinitionBuilder<Writer>();
+
+                    var flt = builder.Empty;
+
+                    var options = new FindOptions<Writer>()
+                    {
+                        Projection = Builders<Writer>.Projection.Exclude(w => w.Books)
+                    };
+
+                    var listWriter = await Writers.Find(flt)
+                         .Project<Writer>(options.Projection).ToListAsync();
+
+                    return listWriter.GroupBy(u => u.country)
+                                .Select(g => new Report
+                                {
+                                    Str = g.Key,
+                                    Num = g.Count()
+                                });
+
+                // 3 - отчет книги по жанрам
                 case 3:
                     var baseList = await Writers.Aggregate()
                                     .Project(w => new { w.Books })
