@@ -33,7 +33,7 @@ namespace BookLibrary.Models
         }
 
         // получаем все документы, используя критерии фальтрации
-        public async Task<IEnumerable<Writer>> GetWriters(string country, string name)
+        public async Task<WriterPagination> GetWriters(string country, string name, int page)
         {
             // строитель фильтров
             var builder = new FilterDefinitionBuilder<Writer>();
@@ -53,9 +53,25 @@ namespace BookLibrary.Models
             {
                 Projection = Builders<Writer>.Projection.Exclude(w => w.Books)
             };
-
-            return await Writers.Find(filter)
-                 .Project<Writer>(options.Projection).ToListAsync();
+        
+            int pageSize = 100;
+            var resultList = await Writers.Find(filter)
+                 .Project<Writer>(options.Projection)
+                 .Skip((page-1)*pageSize)
+                 .Limit(pageSize)
+                 .ToListAsync();
+            PageInfo pageInfo = new PageInfo()
+            {
+                PageNumber = page,
+                PageSize = pageSize,
+                TotalItems = (int)Writers.Find(builder.Empty).Count()
+            };
+            WriterPagination result = new WriterPagination()
+            {
+                Writers = resultList,
+                PageInfo = pageInfo
+            };
+            return result;
         }
         
         public async Task <IEnumerable<Book>> GetBooks(string writerId, string genre, string title)

@@ -21,4 +21,11 @@ namespace BookLibrary.Models
             Books = new List<BaseBook>();
         }
     }
+
+    public class WriterPagination
+    {
+        public IEnumerable<Writer> Writers { get; set; }
+
+        public PageInfo PageInfo { get; set; }
+    }
 }

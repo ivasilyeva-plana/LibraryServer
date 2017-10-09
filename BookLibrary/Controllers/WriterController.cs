@@ -22,9 +22,10 @@ namespace BookLibrary.Controllers
 
         // GET: api/Writer
         [HttpGet]
-        public async Task<Response<IEnumerable<Writer>>> Get(string country, string name)
+        public async Task<Response<WriterPagination>> Get(string country, string name, int page = 1)
         {
-            return new OkResult<IEnumerable<Writer>>(await db.GetWriters(country, name));
+            
+            return new OkResult<WriterPagination>(await db.GetWriters(country, name, page));
         }
 
         // GET: api/Writer/id
