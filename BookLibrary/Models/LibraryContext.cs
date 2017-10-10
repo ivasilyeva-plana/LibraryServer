@@ -49,23 +49,20 @@ namespace BookLibrary.Models
         public async Task<WriterPagination> GetWriters(string country, string name, int page)
         {
 
-            int pageSize = 10000; //заготовка для порционной выдачиданных клиенту (пока не законченный постраничный вывод)
+            var pageInfo = new PageInfo() {
+                PageNumber = page,
+                TotalItems = Writers.AsQueryable().Count()
+            }; 
 
             var regex = GetSearchByNameTemplate(name);
             var resultList = await Writers.AsQueryable()
                                     .Where(i => ((String.IsNullOrEmpty(country) || country == i.country) &&
                                                  (String.IsNullOrEmpty(name) || regex.IsMatch(i.name))))
                                     .Select(i => new Writer() {Id = i.Id, name = i.name, country = i.country }) //не тянем за собой книги
-                                    .Skip((page - 1) * pageSize)
-                                    .Take(pageSize)
+                                    .Skip((page - 1) * pageInfo.PageSize)
+                                    .Take(pageInfo.PageSize)
                                     .ToListAsync();
 
-            PageInfo pageInfo = new PageInfo()
-            {
-                PageNumber = page,
-                PageSize = pageSize,
-                TotalItems = Writers.AsQueryable().Count()
-            };
             WriterPagination result = new WriterPagination()
             {
                 Writers = resultList,

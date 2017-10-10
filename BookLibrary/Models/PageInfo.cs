@@ -9,7 +9,7 @@ namespace BookLibrary.Models
     {
         public int PageNumber { get; set; } // номер текущей страницы
 
-        public int PageSize { get; set; } // количество объектов на странице
+        public int PageSize { get { return 5; } } // количество объектов на странице
 
         public int TotalItems { get; set; } // всего записей
 
