@@ -35,113 +35,75 @@ namespace BookLibrary.Models
         // получаем все документы, используя критерии фальтрации
         public async Task<WriterPagination> GetWriters(string country, string name, int page)
         {
-            // строитель фильтров
-            var builder = new FilterDefinitionBuilder<Writer>();
 
-            var filter = builder.Empty; // фильтр для выборки всех документов
-            // фильтр по имени
-            if (!String.IsNullOrEmpty(country))
-            {
-                filter = filter & builder.Eq("country", country);
-            }
-            if (!String.IsNullOrEmpty(name))
-            {
-                filter = filter & builder.Regex("name", new BsonRegularExpression(name));
-            }
+            int pageSize = 10000; //заготовка для порционной выдачиданных клиенту (пока не законченный постраничный вывод)
 
-            var options = new FindOptions<Writer>()
-            {
-                Projection = Builders<Writer>.Projection.Exclude(w => w.Books)
-            };
-        
-            int pageSize = 100;
-            var resultList = await Writers.Find(filter)
-                 .Project<Writer>(options.Projection)
-                 .Skip((page-1)*pageSize)
-                 .Limit(pageSize)
-                 .ToListAsync();
+            Regex regex = new Regex(@"(\w*)" + name + @"(\w*)");
+            var resultList = await Writers.AsQueryable()
+                                    .Where(i => ((String.IsNullOrEmpty(country) || country == i.country) &&
+                                                 (String.IsNullOrEmpty(name) || regex.IsMatch(i.name))))
+                                    .Select(i => new Writer() {Id = i.Id, name = i.name, country = i.country }) //не тянем за собой книги
+                                    .Skip((page - 1) * pageSize)
+                                    .Take(pageSize)
+                                    .ToListAsync();
+
             PageInfo pageInfo = new PageInfo()
             {
                 PageNumber = page,
                 PageSize = pageSize,
-                TotalItems = (int)Writers.Find(builder.Empty).Count()
+                TotalItems = Writers.AsQueryable().Count()
             };
             WriterPagination result = new WriterPagination()
             {
                 Writers = resultList,
                 PageInfo = pageInfo
             };
+
             return result;
         }
         
+
         public async Task <IEnumerable<Book>> GetBooks(string writerId, string genre, string title)
         {
+            Regex regex = new Regex(@"(\w*)" + title + @"(\w*)");
 
-            var builder = new FilterDefinitionBuilder<Writer>();
-
-            var filter = builder.Empty;
-
-            if (!String.IsNullOrEmpty(writerId))
-            {
-                filter = filter & builder.Eq(w => w.Id, writerId);
-            }
-
-            var options = new FindOptions<Writer>()
-            {
-                Projection = Builders<Writer>.Projection.Include(w => w.Id).Include(w => w.name).Include(w => w.Books)
-            };
-
-            var listWriter = await Writers.Find(filter).Project<Writer>(options.Projection).ToListAsync();
-
-            List<Book> result = new List<Book>();
-
-            Regex regex = new Regex(@"(\w*)"+ title+ @"(\w*)");
-
-            foreach (var writerItem in listWriter)
-            {
-                foreach (var bookItem in writerItem.Books)
+            return await Writers.AsQueryable()
+                .Where(i => (String.IsNullOrEmpty(writerId) || writerId == i.Id))
+                .SelectMany(i => i.Books, (i, book) => new Book()
                 {
-                    if (( String.IsNullOrEmpty(genre) || genre==bookItem.genre) &&
-                        ( String.IsNullOrEmpty(title) || regex.IsMatch(bookItem.title)))
-                    {
-                        result.Add(new Book()
-                        {
-                            writerId = writerItem.Id,
-                            writerName = writerItem.name,
-                            bookId = bookItem.bookId,
-                            title = bookItem.title,
-                            genre = bookItem.genre,
-                            published = bookItem.published
-                        });
-                    }
-                }
-            }
-
-            return result;
-            
-
-           // return await Writers.Find(builder.Empty).Project<Writer>(options.Projection).ToListAsync(); 
-
-            /*
-            return await Writers.Aggregate()
-                            .Match(filter)
-                            .Project(w => new { w.Books })
-                            .Unwind(w => w.Books).ToListAsync();*/
-
+                    writerId = i.Id,
+                    writerName = i.name,
+                    bookId = book.bookId,
+                    title = book.title,
+                    genre = book.genre,
+                    published = book.published
+                })
+                .Where(i => ((String.IsNullOrEmpty(genre) || genre == i.genre) &&
+                             (String.IsNullOrEmpty(title) || regex.IsMatch(i.title))))
+                .ToListAsync();
         }
 
 
         public async Task<Writer> GetWriter(string id)
         {
-            return await Writers.Find(new BsonDocument("_id", new ObjectId(id))).FirstOrDefaultAsync();
+            return await Writers.AsQueryable().Where(i => i.Id == id).FirstOrDefaultAsync();
         }
 
         public async Task<Book> GetBook(string writerId, int bookId)
         {
-            var wr = await Writers.Find(new BsonDocument("_id", new ObjectId(writerId))).FirstOrDefaultAsync();
-
-            return new Book(wr.Books.Where(i => i.bookId == bookId).First<BaseBook>(), wr.Id, wr.name);
-            
+            return await Writers.AsQueryable()
+                        .Where(i => i.Id == writerId)
+                        .SelectMany(i => i.Books, (i, book) => new Book()
+                        {
+                            writerId = i.Id,
+                            writerName = i.name,
+                            bookId = book.bookId,
+                            title = book.title,
+                            genre = book.genre,
+                            published = book.published
+                        })
+                        .Where(i => i.bookId == bookId)
+                        .FirstOrDefaultAsync();
         }
 
         public async Task Create(Writer w)
@@ -162,17 +124,19 @@ namespace BookLibrary.Models
 
         public async Task CreateBook(Book b)
         {
+            var writerBooks = Writers.AsQueryable()
+                .Where(p => p.Id == b.writerId)
+                .SelectMany(p => p.Books);
+
+            int i = writerBooks.Count() == 0 ? 1 : writerBooks.Max(p => p.bookId) + 1;
+
             var filter = Builders<Writer>
              .Filter.Eq(w => w.Id, b.writerId);
-
-            List<Writer> theWriter =  Writers.Find(Builders<Writer>.Filter.Eq("_id", new ObjectId(b.writerId))).ToList();
-            List<BaseBook> bookMaxIndex = theWriter[0].Books.OrderByDescending(p => p.bookId).Take(1).ToList();
-            int i = bookMaxIndex.Count() == 0? 1 : bookMaxIndex[0].bookId + 1;
 
             var update = Builders<Writer>.Update
                     .Push<BaseBook>(e => e.Books, new BaseBook()
                     {
-                        bookId = i,
+                        bookId = 1,
                         title = b.title,
                         genre = b.genre,
                         published = b.published
@@ -183,14 +147,7 @@ namespace BookLibrary.Models
 
         // обновление документа
         public async Task UpdateBook(Book b)
-        {/*
-            var filter = Builders<Writer>.Filter.And(
-                Builders<Writer>.Filter.Where(x => x.Id == b.writerId),
-                Builders<Writer>.Filter.ElemMatch(x => x.Books, x => x.bookId == b.bookId));
-
-            var update = Builders<Writer>.Update.Set(x => x.Books[-1].title, b.title);
-
-            await Writers.UpdateOneAsync(filter, update);*/
+        {
 
             var filter = Builders<Writer>
              .Filter.Eq(w => w.Id, b.writerId);
@@ -229,78 +186,47 @@ namespace BookLibrary.Models
             {
                 // 1 - отчет книги за год по месяцам
                 case 1:
-
                     DateTime date1 = new DateTime(year, 1, 1);
                     DateTime date2 = new DateTime(year + 1, 1, 1);
-
-                    //инициализация фильтра, который отберёт всех авторов у которых есть книги с указанным годом издания
-                    var subFilter = Builders<BaseBook>.Filter.Gte("published", new BsonDateTime(date1))
-                                    & Builders<BaseBook>.Filter.Lt("published", new BsonDateTime(date2));
-                    var filter = Builders<Writer>.Filter.ElemMatch("Books", subFilter);
-
-
-                    var list = await Writers.Aggregate()
-                                    .Match(filter)
-                                    .Project(w => new { w.Books })
-                                    .Unwind(w => w.Books).ToListAsync();
-
-                    foreach (var l in list)
-                    {
-                        var x = l.GetElement("Books").Value.ToBsonDocument();
-                        listBook.Add(BsonSerializer.Deserialize<BaseBook>(x));
-                    }
-
                     var months = new string[]{"январь", "февраль", "март",
                                                   "апрель", "май", "июнь",
                                                   "июль", "август", "сентябрь",
                                                   "октябрь", "ноябрь", "декабрь"};
-                    return listBook.Where(u => u.published.Year == year).GroupBy(u => u.published.Month)
-                                .Select(g => new Report
-                                {
-                                    Str = months[g.Key - 1],
-                                    Num = g.Count()
-                                });
+
+                    var list = await Writers.AsQueryable()
+                                    .SelectMany(i => i.Books)
+                                    .Where(u => (u.published >= date1 && u.published < date2))
+                                    .ToListAsync();
+
+                    return list.GroupBy(u => u.published.Month)
+                                    .Select(g => new Report
+                                    {
+                                        Str = months[g.Key - 1],
+                                        Num = g.Count()
+                                    });
 
                 // 2 - отчет авторы по странам
                 case 2:
 
-                    var builder = new FilterDefinitionBuilder<Writer>();
-
-                    var flt = builder.Empty;
-
-                    var options = new FindOptions<Writer>()
-                    {
-                        Projection = Builders<Writer>.Projection.Exclude(w => w.Books)
-                    };
-
-                    var listWriter = await Writers.Find(flt)
-                         .Project<Writer>(options.Projection).ToListAsync();
-
-                    return listWriter.GroupBy(u => u.country)
+                    return  await Writers.AsQueryable().GroupBy(u => u.country)
                                 .Select(g => new Report
                                 {
                                     Str = g.Key,
                                     Num = g.Count()
-                                });
+                                }).ToListAsync();
 
                 // 3 - отчет книги по жанрам
                 case 3:
-                    var baseList = await Writers.Aggregate()
-                                    .Project(w => new { w.Books })
-                                    .Unwind(w => w.Books).ToListAsync();
 
-                    foreach (var l in baseList)
-                    {
-                        var x = l.GetElement("Books").Value.ToBsonDocument();
-                        listBook.Add(BsonSerializer.Deserialize<BaseBook>(x));
-                    }
-
-                    return listBook.GroupBy(u => u.genre)
+                    return await Writers.AsQueryable()
+                        .SelectMany(i => i.Books)
+                        .GroupBy(i => i.genre)
                                 .Select(g => new Report
                                 {
                                     Str = g.Key,
                                     Num = g.Count()
-                                });
+                                }).ToListAsync();
+
                 default: return null;
             }
 
