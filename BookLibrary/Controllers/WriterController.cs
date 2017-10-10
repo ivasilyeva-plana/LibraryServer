@@ -14,8 +14,8 @@ namespace BookLibrary.Controllers
     public class WriterController : Controller
     {
 
-        private readonly LibraryContext db;
-        public WriterController(LibraryContext context)
+        private readonly ILibraryContext db;
+        public WriterController(ILibraryContext context)
         {
             db = context;
         }
@@ -24,7 +24,6 @@ namespace BookLibrary.Controllers
         [HttpGet]
         public async Task<Response<WriterPagination>> Get(string country, string name, int page = 1)
         {
-            
             return new OkResult<WriterPagination>(await db.GetWriters(country, name, page));
         }
 

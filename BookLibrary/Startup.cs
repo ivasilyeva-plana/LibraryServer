@@ -10,6 +10,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using BookLibrary.Models;
 using BookLibrary.Filters;
+using MongoDB.Driver;
+using BookLibrary.Properties;
 
 namespace BookLibrary
 {
@@ -25,7 +27,12 @@ namespace BookLibrary
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddTransient<LibraryContext>();
+            services.AddTransient<ILibraryContext, MongoLibraryContext>(
+                s =>
+                {
+                    return new MongoLibraryContext(Resources.ResourceManager.GetString("MONGODB_CONNECTION_STRING"));
+                });
+
             services.AddMvc(
                 options =>
                 {

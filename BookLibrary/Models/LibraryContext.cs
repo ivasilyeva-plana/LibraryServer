@@ -11,25 +11,38 @@ using System.Threading.Tasks;
 
 namespace BookLibrary.Models
 {
-    public class LibraryContext
+    public class MongoLibraryContext : ILibraryContext
     {
-        IMongoDatabase database; // база данных
+        private string connectionString;
 
-        public LibraryContext()
+        private IMongoDatabase database;
+        public IMongoDatabase DB
         {
-            // строка подключения
-            var connectionString = Resources.ResourceManager.GetString("MONGODB_CONNECTION_STRING");
-            var connection = new MongoUrlBuilder(connectionString);
-            // получаем клиента для взаимодействия с базой данных
-            var client = new MongoClient(connectionString);
-            // получаем доступ к самой базе данных
-            database = client.GetDatabase(connection.DatabaseName);
+            get
+            {
+                if (database == null)
+                {
+                    var connection = new MongoUrlBuilder(connectionString);
+                    // получаем клиента для взаимодействия с базой данных
+                    var client = new MongoClient(connectionString);
+                    // получаем доступ к самой базе данных
+                    database = client.GetDatabase(connection.DatabaseName);
+                }
+                return database;
+            }
         }
 
-        // обращаемся к коллекции Writers
+        public MongoLibraryContext(string _connectionString)
+        {
+            connectionString = _connectionString;
+        }
+
+        /// <summary>
+        /// Get Writers collection
+        /// </summary>
         private IMongoCollection<Writer> Writers
         {
-            get { return database.GetCollection<Writer>("writers"); }
+            get { return DB.GetCollection<Writer>("writers"); }
         }
 
         // получаем все документы, используя критерии фальтрации
@@ -38,7 +51,7 @@ namespace BookLibrary.Models
 
             int pageSize = 10000; //заготовка для порционной выдачиданных клиенту (пока не законченный постраничный вывод)
 
-            Regex regex = new Regex(@"(\w*)" + name + @"(\w*)");
+            var regex = GetSearchByNameTemplate(name);
             var resultList = await Writers.AsQueryable()
                                     .Where(i => ((String.IsNullOrEmpty(country) || country == i.country) &&
                                                  (String.IsNullOrEmpty(name) || regex.IsMatch(i.name))))
@@ -65,7 +78,7 @@ namespace BookLibrary.Models
 
         public async Task <IEnumerable<Book>> GetBooks(string writerId, string genre, string title)
         {
-            Regex regex = new Regex(@"(\w*)" + title + @"(\w*)");
+            var regex = GetSearchByNameTemplate(title);
 
             return await Writers.AsQueryable()
                 .Where(i => (String.IsNullOrEmpty(writerId) || writerId == i.Id))
@@ -148,7 +161,6 @@ namespace BookLibrary.Models
         // обновление документа
         public async Task UpdateBook(Book b)
         {
-
             var filter = Builders<Writer>
              .Filter.Eq(w => w.Id, b.writerId);
 
@@ -169,19 +181,17 @@ namespace BookLibrary.Models
 
         public async Task RemoveBook(string writerId, int bookId)
         {
-
             var filter = Builders<Writer>
              .Filter.Eq(w => w.Id, writerId);
 
             var update = Builders<Writer>.Update.PullFilter(w => w.Books, f => f.bookId == bookId);
             await Writers.FindOneAndUpdateAsync(filter, update);
-
         }
-
 
         public async Task <IEnumerable<Report>> Report(int numReport, int year)
         {
-            List<BaseBook> listBook = new List<BaseBook>();
+            var res = new List<Report>();
+            var listBook = new List<BaseBook>();
             switch (numReport)
             {
                 // 1 - отчет книги за год по месяцам
@@ -192,33 +202,31 @@ namespace BookLibrary.Models
                                                   "апрель", "май", "июнь",
                                                   "июль", "август", "сентябрь",
                                                   "октябрь", "ноябрь", "декабрь"};
-
                     var list = await Writers.AsQueryable()
                                     .SelectMany(i => i.Books)
                                     .Where(u => (u.published >= date1 && u.published < date2))
                                     .ToListAsync();
 
-                    return list.GroupBy(u => u.published.Month)
+                    res = list.GroupBy(u => u.published.Month)
                                     .Select(g => new Report
                                     {
                                         Str = months[g.Key - 1],
                                         Num = g.Count()
-                                    });
-
+                                    }).ToList();
+                    break;
                 // 2 - отчет авторы по странам
                 case 2:
 
-                    return  await Writers.AsQueryable().GroupBy(u => u.country)
+                    res = await Writers.AsQueryable().GroupBy(u => u.country)
                                 .Select(g => new Report
                                 {
                                     Str = g.Key,
                                     Num = g.Count()
                                 }).ToListAsync();
-
+                    break;
                 // 3 - отчет книги по жанрам
                 case 3:
-
-                    return await Writers.AsQueryable()
+                    res = await Writers.AsQueryable()
                         .SelectMany(i => i.Books)
                         .GroupBy(i => i.genre)
                                 .Select(g => new Report
@@ -226,14 +234,16 @@ namespace BookLibrary.Models
                                     Str = g.Key,
                                     Num = g.Count()
                                 }).ToListAsync();
-
-                default: return null;
+                    break;
+                default:
+                    break;
             }
-
+            return res;
         }
-        
 
-
-
+        private Regex GetSearchByNameTemplate(string name)
+        {
+            return new Regex($"(\\w*){name}(\\w*)");
+        }
     }
 }

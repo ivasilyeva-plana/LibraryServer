@@ -15,8 +15,8 @@ namespace BookLibrary.Controllers
     public class ReportController : Controller
     {
 
-        private readonly LibraryContext db;
-        public ReportController(LibraryContext context)
+        private readonly ILibraryContext db;
+        public ReportController(ILibraryContext context)
         {
             db = context;
         }
